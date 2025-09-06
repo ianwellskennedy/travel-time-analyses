@@ -37,7 +37,6 @@ walmart_locations <- walmart_locations %>%
 
 walmart_locations <- walmart_locations$full_address
 
-
 # Run for loop ----
 
 isochrome_final <- mb_isochrone(
@@ -85,19 +84,18 @@ for (location in walmart_locations){
 
 # Plot the map ----
 
-# map <- mapboxgl(bounds = isochrome_final, access_token = token, style = mapbox_style("satellite-streets")) |>
-#   add_fill_layer(
-#     "noon",
-#     source = isochrome_final,
-#     fill_color = match_expr(
-#       column = "time",
-#       values = c(10, 15, 20),
-#       stops = c("red", "blue", "green")
-#     ),
-#     fill_opacity = 0.75
-#   ) 
-# 
-# map
+mapboxgl(bounds = isochrome_final, access_token = token, style = mapbox_style("satellite-streets")) %>%
+  add_fill_layer(
+    "noon",
+    source = isochrome_final,
+    fill_color = match_expr(
+      column = "time",
+      values = c(10, 15, 20),
+      stops = c("red", "blue", "green")
+    ),
+    fill_opacity = 0.75
+  )
+
 
 # Finalize spatial files ----
 
