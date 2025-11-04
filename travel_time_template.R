@@ -20,10 +20,11 @@ rm(packages, installed_packages)
 
 token <- "pk.eyJ1Ijoicm9zczJpYW4iLCJhIjoiY21mN2dvbzI2MDR5ajJqb213OXZ4cXdmNSJ9.uJLcOdrlHJcNOMPJoT-BqQ"
 
-input_file_path <- "C:/Users/ianwe/Downloads/github/travel-time-analyses/scrape-hero/inputs/Hyatt_Partners_USA.csv"
+input_file_path <- "C:/Users/ianwe/OneDrive/Documents/scrape_hero_files/inputs/McDonalds_USA.csv"
 
-output_file_path_for_isochrone <- "travel-time-analyses/scrape-hero/.shp"
-output_file_path_for_geocode <- "travel-time-analyses/scrape-hero/.shp"
+output_file_path_for_isochrone <- "C:/Users/ianwe/OneDrive/Documents/scrape_hero_files/inputs/mcdonalds_isochrone.csv"
+
+output_file_path_for_geocode <- "C:/Users/ianwe/OneDrive/Documents/scrape_hero_files/inputs/mcdonalds_geocode.csv"
 
 # Read in data ----
 
@@ -44,8 +45,8 @@ coords_list <- map2(locations$Longitude, locations$Latitude, ~ c(.x, .y))
 isochrone_final <- mb_isochrone(
   coords_list[[1]],
   profile = "driving",
-  time = c(10, 15, 20),
-  depart_at = "2025-10-11T12:00",
+  time = 10,
+  depart_at = "2025-11-08T12:00",
   access_token = token,
   geometry = "polygon",
   output = "sf",
@@ -115,7 +116,7 @@ for (i in seq_along(coords_list)) {
   isochrone <- mb_isochrone(
     coords_list[[i]],
     profile = "driving",
-    time = c(10, 15, 20),
+    time = 10,
     depart_at = "2025-10-11T12:00",
     access_token = token,
     geometry = "polygon",
@@ -149,8 +150,8 @@ mapboxgl(bounds = isochrone_final, access_token = token, style = mapbox_style("s
     source = isochrone_final,
     fill_color = match_expr(
       column = "time",
-      values = c(10, 15, 20),
-      stops = c("green", "yellow", "red")
+      values = 10,
+      stops = 'green'
     ),
     fill_opacity = 0.75
   )
