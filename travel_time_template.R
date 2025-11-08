@@ -20,11 +20,11 @@ rm(packages, installed_packages)
 
 token <- "pk.eyJ1Ijoicm9zczJpYW4iLCJhIjoiY21mN2dvbzI2MDR5ajJqb213OXZ4cXdmNSJ9.uJLcOdrlHJcNOMPJoT-BqQ"
 
-input_file_path <- "C:/Users/ianwe/OneDrive/Documents/scrape_hero_files/inputs/McDonalds_USA.csv"
+input_file_path <- "C:/Users/ianwe/OneDrive/Documents/scrape_hero_files/mcdonalds/inputs/McDonalds_USA.csv"
 
-output_file_path_for_isochrone <- "C:/Users/ianwe/OneDrive/Documents/scrape_hero_files/inputs/mcdonalds_isochrone.csv"
+output_file_path_for_isochrone <- "C:/Users/ianwe/OneDrive/Documents/scrape_hero_files/mcdonalds/outputs/mcdonalds_isochrone.csv"
 
-output_file_path_for_geocode <- "C:/Users/ianwe/OneDrive/Documents/scrape_hero_files/inputs/mcdonalds_geocode.csv"
+output_file_path_for_geocode <- "C:/Users/ianwe/OneDrive/Documents/scrape_hero_files/mcdonalds/outputs/mcdonalds_geocode.csv"
 
 # Read in data ----
 
@@ -33,9 +33,9 @@ locations <- read.csv(input_file_path)
 # Clean data ----
 
 locations <- locations %>%
-  mutate(full_address = paste0(Street, ", ", City, ", ", State, " ", Zip_Code))
+  filter(!State %in% c('PR', 'MP', 'GU'))
 
-addresses <- locations$full_address
+addresses <- locations$Address
 
 coords_list <- map2(locations$Longitude, locations$Latitude, ~ c(.x, .y))
 
@@ -90,57 +90,137 @@ geocode_final <- geocode_final[-1, ]
 
 # Generate travel time for all locations ----
 
+geocode_list <- list()
+isochrone_list <- list()
+
+# Loop through all coordinates
 for (i in seq_along(coords_list)) {
+  coords <- coords_list[[i]]
   
-  # Reverse geocode
-  geocode <- mb_reverse_geocode(
-    coords_list[[i]],
-    output = "sf",
-    access_token = token
-  ) %>%
-    mutate(
-      address = locations$Street[i],
-      city = locations$City[i],
-      county = locations$County[i],
-      state = locations$State[i],
-      zip_code = locations$Zip_Code[i],
-      country = locations$Country[i],
-      lat = locations$Latitude[i],
-      lon = locations$Longitude[i],
-      naics = locations$NAICS.2[i]
-    )
+  # --- Reverse geocode ---
+  geocode <- tryCatch({
+    mb_reverse_geocode(
+      coords,
+      output = "sf",
+      access_token = token
+    ) %>%
+      mutate(
+        address = locations$Street[i],
+        city = locations$City[i],
+        county = locations$County[i],
+        state = locations$State[i],
+        zip_code = locations$Zip_Code[i],
+        country = locations$Country[i],
+        lat = locations$Latitude[i],
+        lon = locations$Longitude[i],
+        naics = locations$NAICS.2[i]
+      )
+  },
+  error = function(e) {
+    message(paste("Reverse geocode failed for index", i, ":", e$message))
+    return(NULL)
+  })
   
-  geocode_final <- rbind(geocode_final, geocode)
+  # Only store successful results
+  if (!is.null(geocode)) {
+    geocode_list[[length(geocode_list) + 1]] <- geocode
+  }
   
-  # Isochrone
-  isochrone <- mb_isochrone(
-    coords_list[[i]],
-    profile = "driving",
-    time = 10,
-    depart_at = "2025-10-11T12:00",
-    access_token = token,
-    geometry = "polygon",
-    output = "sf",
-    keep_color_cols = FALSE
-  ) %>%
-    mutate(
-      address = locations$Street[i],
-      city = locations$City[i],
-      county = locations$County[i],
-      state = locations$State[i],
-      zip_code = locations$Zip_Code[i],
-      country = locations$Country[i],
-      lat = locations$Latitude[i],
-      lon = locations$Longitude[i],
-      naics = locations$NAICS.2[i]
-    )
+  # --- Isochrone ---
+  isochrone <- tryCatch({
+    mb_isochrone(
+      coords,
+      profile = "driving",
+      time = 10,
+      depart_at = "2025-10-11T12:00",
+      access_token = token,
+      geometry = "polygon",
+      output = "sf",
+      keep_color_cols = FALSE
+    ) %>%
+      mutate(
+        address = locations$Street[i],
+        city = locations$City[i],
+        county = locations$County[i],
+        state = locations$State[i],
+        zip_code = locations$Zip_Code[i],
+        country = locations$Country[i],
+        lat = locations$Latitude[i],
+        lon = locations$Longitude[i],
+        naics = locations$NAICS.2[i]
+      )
+  },
+  error = function(e) {
+    message(paste("Isochrone failed for index", i, ":", e$message))
+    return(NULL)
+  })
   
-  isochrone_final <- rbind(isochrone_final, isochrone)
+  # Only store successful results
+  if (!is.null(isochrone)) {
+    isochrone_list[[length(isochrone_list) + 1]] <- isochrone
+  }
   
-  # Print progress
-  print(paste("Processed location:", locations$Street[i]))
+  # --- Progress and pacing ---
+  print(paste("Processed location:", i, "of", length(coords_list)))
+  Sys.sleep(runif(1, 0.2, 0.5))  # random delay to avoid rate limiting
 }
 
+geocode_final <- do.call(rbind, geocode_list)
+isochrone_final <- do.call(rbind, isochrone_list)
+
+isochrone_final <- st_as_sf(isochrone_final)
+geocode_final <- st_as_sf(geocode_final)
+
+# for (i in seq_along(coords_list)) {
+#   
+#   # Reverse geocode
+#   geocode <- mb_reverse_geocode(
+#     coords_list[[i]],
+#     output = "sf",
+#     access_token = token
+#   ) %>%
+#     mutate(
+#       address = locations$Street[i],
+#       city = locations$City[i],
+#       county = locations$County[i],
+#       state = locations$State[i],
+#       zip_code = locations$Zip_Code[i],
+#       country = locations$Country[i],
+#       lat = locations$Latitude[i],
+#       lon = locations$Longitude[i],
+#       naics = locations$NAICS.2[i]
+#     )
+#   
+#   geocode_final <- rbind(geocode_final, geocode)
+#   
+#   # Isochrone
+#   isochrone <- mb_isochrone(
+#     coords_list[[i]],
+#     profile = "driving",
+#     time = 10,
+#     depart_at = "2025-10-11T12:00",
+#     access_token = token,
+#     geometry = "polygon",
+#     output = "sf",
+#     keep_color_cols = FALSE
+#   ) %>%
+#     mutate(
+#       address = locations$Street[i],
+#       city = locations$City[i],
+#       county = locations$County[i],
+#       state = locations$State[i],
+#       zip_code = locations$Zip_Code[i],
+#       country = locations$Country[i],
+#       lat = locations$Latitude[i],
+#       lon = locations$Longitude[i],
+#       naics = locations$NAICS.2[i]
+#     )
+#   
+#   isochrone_final <- rbind(isochrone_final, isochrone)
+#   
+#   # Print progress
+#   print(paste("Processed location:", locations$Address[i]))
+# }
 
 # Plot the map ----
 
@@ -151,16 +231,10 @@ mapboxgl(bounds = isochrone_final, access_token = token, style = mapbox_style("s
     fill_color = match_expr(
       column = "time",
       values = 10,
-      stops = 'green'
+      stops = 'red'
     ),
     fill_opacity = 0.75
   )
-
-
-# Finalize spatial files ----
-
-isochrone_final <- st_as_sf(isochrone_final)
-geocode_final <- st_as_sf(geocode_final)
 
 # Output files ----
 
